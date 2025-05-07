@@ -6,7 +6,7 @@
  struct RANKING{
      struct RANKING *previous;
      int score;
-     char nickname[10];
+     char nickname[25];
      struct RANKING *next;
  };
  
@@ -24,7 +24,7 @@
      }
      new->score = score;
      strncpy(new->nickname, nick, sizeof(new->nickname) - 1);
-     new->nickname[sizeof(new->nickname) - 1] = '\0'; // Garante terminação nula
+     new->nickname[sizeof(new->nickname) - 1] = '\0';
      new->next = NULL;
      new->previous = lista->tail;
      if(lista->size ==0)
@@ -78,7 +78,7 @@
  
  void ordenarLista(struct DESCRITOR *lista){
      lista->head = mergeSort(lista->head);
-     //atualiza o tail (o ultimo nó agora pode seer mudado)
+     
      struct RANKING *temp = lista->head;
      while(temp && temp->next){
          temp = temp->next;
@@ -96,10 +96,6 @@
      printf("Total de jogadores: %d\n",lista->size);
  }
  
- 
- 
- 
- 
  int main(){
      struct DESCRITOR ranking = {NULL, NULL,0};
      int choice, score;
@@ -115,7 +111,7 @@
          case 1: 
              printf("Dite o nickname:\n");
              scanf("%s",nick);
-             printf("DIgite o score\n");
+             printf("Digite o score\n");
              scanf("%d",&score);
              inserirFim(&ranking, score, nick);
              break;
