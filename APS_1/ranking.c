@@ -1,21 +1,21 @@
 #include <stdio.h>
  #include <stdlib.h>
  #include <string.h>
- //lista com descritor
- 
+
  struct RANKING{
      struct RANKING *previous;
      int score;
      char nickname[25];
      struct RANKING *next;
  };
- 
+
  struct DESCRITOR{
      struct RANKING *head;
      struct RANKING *tail;
      int size;
      
  };
+
  void inserirFim(struct DESCRITOR *lista, int score, const char *nick){
      struct RANKING *new = malloc(sizeof(struct RANKING));
      if(!new){
@@ -89,17 +89,66 @@
  void exibirRanking(struct DESCRITOR *lista){
      printf("\nRANKING\n");
      struct RANKING *current = lista->head;
+     int posicao = 1;
      while(current){
-         printf("Nick : %-10s | Score: %d\n",current->nickname, current->score);
+         printf("Posicao : %d |Nick : %-25s | 3Score: %d\n",posicao,current->nickname, current->score);
          current = current->next;
+         posicao++;
      }
      printf("Total de jogadores: %d\n",lista->size);
  }
  
+void salvarDados(struct DESCRITOR *lista)
+{
+   FILE *arquivo = fopen("dados.txt","w");
+   if ( arquivo == NULL)
+   {
+    printf("Erro ao abrir arquivo para escrita\n");
+    return;
+   } 
+   struct RANKING *current = lista -> head;
+   while(current!=NULL)
+   {
+    fprintf(arquivo, "%d,%s\n",current->score,current->nickname);
+    current = current->next;
+   }
+   fclose(arquivo);
+   printf("Dados salvos");
+}
+
+void carregarDados(struct DESCRITOR *lista)
+{
+    FILE *arquivo = fopen("dados.txt", "r");
+    if (arquivo == NULL)
+    {
+        printf("Arquivo nao encontrado. Criando novo...\n");
+    }
+    char linha[100];
+ 
+    while (fgets(linha, sizeof(linha), arquivo))
+    {
+        // remove o /n do final da linha
+        linha[strcspn(linha, "\n")] = 0;
+
+        char *token = strtok(linha, ",");
+        int score = atoi(token);
+        token = strtok(NULL, ",");
+        char nick[25];
+        if(token != NULL)
+        {
+            strncpy(nick, token, sizeof(nick) -1);
+            nick[sizeof(nick) -1] = '\0';
+            inserirFim(lista,score,nick);
+        }
+    }
+    fclose(arquivo); 
+}
+
  int main(){
      struct DESCRITOR ranking = {NULL, NULL,0};
+     carregarDados(&ranking);
      int choice, score;
-     char nick[10];
+     char nick[25];
      while(1){
          printf("\nMenu:\n");
          printf("1. Adicionar jogador ao ranking\n");
@@ -109,7 +158,7 @@
          switch (choice)
          {
          case 1: 
-             printf("Dite o nickname:\n");
+             printf("Digite o nickname:\n");
              scanf("%s",nick);
              printf("Digite o score\n");
              scanf("%d",&score);
@@ -120,6 +169,7 @@
              exibirRanking(&ranking);
              break;
          case 3:
+             salvarDados(&ranking);
              exit(0);
          
          default:
