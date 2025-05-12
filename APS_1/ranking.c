@@ -46,31 +46,9 @@
      slow->next = NULL;
      if(temp)
          temp->previous= NULL;
-        return temp;
+         return temp;
  };
  
-struct RANKING* mergeLetter(struct RANKING *first, struct RANKING *second) {
-    if (!first)
-        return second;
-    if (!second)
-        return first;
-    
-
-    if (strcmp(first->nickname, second->nickname) <= 0) {
-        first->next = mergeLetter(first->next, second);
-        if (first->next)
-            first->next->previous = first;
-        first->previous = NULL;
-        return first;
-    } else {
-        second->next = mergeLetter(first, second->next);
-        if (second->next)
-            second->next->previous = second;
-        second->previous = NULL;
-        return second;
-    }
-}
-
  struct RANKING* merge(struct RANKING *first, struct RANKING *second){
      if(!first)
          return second;
@@ -97,28 +75,7 @@ struct RANKING* mergeLetter(struct RANKING *first, struct RANKING *second) {
      second = mergeSort(second);
      return merge(head,second);
  }
-
- struct RANKING* mergeSortLetter(struct RANKING *head)
- {
-    if(!head || !head->next)
-        return head;
-    struct RANKING *second = split(head);
-    head = mergeSortLetter(head);
-    second = mergeSortLetter(second);
-    return mergeLetter(head,second);
- }
  
- void ordenarLetter(struct DESCRITOR *lista)
- {
-    lista->head = mergeSortLetter(lista->head);
-    struct RANKING *temp = lista->head;
-    while (temp && temp->next)
-    {
-        temp = temp-> next;
-    }
-    lista->tail = temp;
- }
-
  void ordenarLista(struct DESCRITOR *lista){
      lista->head = mergeSort(lista->head);
      
@@ -134,7 +91,7 @@ struct RANKING* mergeLetter(struct RANKING *first, struct RANKING *second) {
      struct RANKING *current = lista->head;
      int posicao = 1;
      while(current){
-         printf("Posicao : %d |Nick : %-25s | Score: %d\n",posicao,current->nickname, current->score);
+         printf("Posicao : %d |Nick : %-25s | 3Score: %d\n",posicao,current->nickname, current->score);
          current = current->next;
          posicao++;
      }
@@ -187,21 +144,6 @@ void carregarDados(struct DESCRITOR *lista)
     fclose(arquivo); 
 }
 
-void liberarMemoria(struct DESCRITOR *lista) {
-    struct RANKING *current = lista->head;
-    struct RANKING *next;
-    
-    while (current != NULL) {
-        next = current->next;
-        free(current);
-        current = next;
-    }
-    
-    lista->head = NULL;
-    lista->tail = NULL;
-    lista->size = 0;
-}
-
  int main(){
      struct DESCRITOR ranking = {NULL, NULL,0};
      carregarDados(&ranking);
@@ -211,8 +153,7 @@ void liberarMemoria(struct DESCRITOR *lista) {
          printf("\nMenu:\n");
          printf("1. Adicionar jogador ao ranking\n");
          printf("2. Ver ranking completo\n");
-         printf("3. Lista alfabetica\n");
-         printf("4. Sair\n");
+         printf("3. Sair\n");
          scanf("%d", &choice);
          switch (choice)
          {
@@ -228,12 +169,7 @@ void liberarMemoria(struct DESCRITOR *lista) {
              exibirRanking(&ranking);
              break;
          case 3:
-             ordenarLetter(&ranking);
-             exibirRanking(&ranking);
-             break;
-         case 4: 
              salvarDados(&ranking);
-             liberarMemoria(&ranking);
              exit(0);
          
          default:
