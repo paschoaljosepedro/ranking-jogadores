@@ -17,6 +17,10 @@ struct RANKING *binarySearchRanking(const struct DESCRITOR *desc_stru,
     return NULL;
   }
 
+    if (desc_stru->head->score == targetScore) {
+    return desc_stru->head;
+  }
+
   while (left <= right) {
     int mid = left + (right - left) / 2;
 
