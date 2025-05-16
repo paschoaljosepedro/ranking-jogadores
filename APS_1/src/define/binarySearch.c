@@ -8,14 +8,14 @@ struct RANKING *binarySearchRanking(const struct DESCRITOR *desc_stru,
 
 struct RANKING *binarySearchRanking(const struct DESCRITOR *desc_stru,
                                     int targetScore) {
+  int left = 0;
+  int right = desc_stru->size - 1;
+  struct RANKING *result = NULL;
+
   if (desc_stru == NULL || desc_stru->head == NULL) {
     fprintf(stderr, "Erro: Descritor vazio ou nulo\n");
     return NULL;
   }
-
-  int left = 0;
-  int right = desc_stru->size - 1;
-  struct RANKING *result = NULL;
 
   while (left <= right) {
     int mid = left + (right - left) / 2;
