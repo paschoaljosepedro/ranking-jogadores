@@ -4,6 +4,9 @@
 #include <stdlib.h>
 
 struct RANKING *binarySearchRanking(const struct DESCRITOR *desc_stru,
+                                    int targetScore);
+
+struct RANKING *binarySearchRanking(const struct DESCRITOR *desc_stru,
                                     int targetScore) {
   if (desc_stru == NULL || desc_stru->head == NULL) {
     fprintf(stderr, "Erro: Descritor vazio ou nulo\n");
