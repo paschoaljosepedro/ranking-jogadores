@@ -7,4 +7,4 @@ typedef struct {
     double elapsed;
 } TIMERETURN;
 
-
+TIMERETURN calcTimer(struct timeval start, struct timeval end);

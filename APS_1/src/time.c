@@ -1,4 +1,4 @@
-#include "../header/time.h"
+#include "header/time.h"
 
 TIMERETURN calcTimer(struct timeval start, struct timeval end) {
     long seconds = end.tv_sec - start.tv_sec;
