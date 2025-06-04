@@ -326,6 +326,57 @@ void insertOnScoreList(struct DESCRITOR *list, int score,
   printScoreList(list);
 }
 
+/* Funções de persistência de dados */
+void salvarDados(struct DESCRITOR *lista) {
+    FILE *arquivo = fopen("ranking.txt", "w");
+    if (arquivo == NULL) {
+        printf("Erro ao abrir arquivo para escrita\n");
+        return;
+    }
+    
+    struct RANKING *current = lista->head;
+    while (current != NULL) {
+        fprintf(arquivo, "%s,%d\n", current->nickname, current->score);
+        current = current->next;
+    }
+    
+    fclose(arquivo);
+    printf("Dados salvos com sucesso!\n");
+}
+
+void carregarDados(struct DESCRITOR *lista) {
+    FILE *arquivo = fopen("ranking.txt", "r");
+    if (arquivo == NULL) {
+        printf("Arquivo não encontrado. Criando novo arquivo...\n");
+        return;
+    }
+    
+    char linha[100];
+    while (fgets(linha, sizeof(linha), arquivo) {
+        // Remove a quebra de linha
+        linha[strcspn(linha, "\n")] = 0;
+        
+        // Divide a linha em nickname e score
+        char *token = strtok(linha, ",");
+        if (token == NULL) continue;
+        
+        char nickname[25];
+        strncpy(nickname, token, sizeof(nickname) - 1);
+        nickname[sizeof(nickname) - 1] = '\0';
+        
+        token = strtok(NULL, ",");
+        if (token == NULL) continue;
+        
+        int score = atoi(token);
+        
+        // Insere na lista
+        insertOnScoreList(lista, score, nickname);
+    }
+    
+    fclose(arquivo);
+    printf("Dados carregados com sucesso!\n");
+}
+
 /* Funções de desenho OpenGL */
 void drawText(float x, float y, const char *text) {
     glRasterPos2f(x, y);
@@ -623,46 +674,6 @@ void handleSubmenuSelection(int selected_index) {
     }
 }
 
-/* Funções de arquivo */
-void salvarDados(struct DESCRITOR *lista) {
-    FILE *arquivo = fopen("dados.txt", "w");
-    if (arquivo == NULL) {
-        printf("Erro ao abrir arquivo para escrita\n");
-        return;
-    }
-    struct RANKING *current = lista->head;
-    while (current != NULL) {
-        fprintf(arquivo, "%d,%s\n", current->score, current->nickname);
-        current = current->next;
-    }
-    fclose(arquivo);
-    printf("Dados salvos");
-}
-
-void carregarDados(struct DESCRITOR *lista) {
-    FILE *arquivo = fopen("dados.txt", "r");
-    if (arquivo == NULL) {
-        printf("Arquivo nao encontrado. Criando novo...\n");
-        return;
-    }
-    char linha[100];
-
-    while (fgets(linha, sizeof(linha), arquivo)) {
-        linha[strcspn(linha, "\n")] = 0;
-
-        char *token = strtok(linha, ",");
-        int score = atoi(token);
-        token = strtok(NULL, ",");
-        char nick[25];
-        if (token != NULL) {
-            strncpy(nick, token, sizeof(nick) - 1);
-            nick[sizeof(nick) - 1] = '\0';
-            insertOnScoreList(lista, score, nick);
-        }
-    }
-    fclose(arquivo);
-}
-
 /* Funções GLUT */
 void display() {
     if (showing_rankings) {
@@ -692,6 +703,7 @@ void keyboard(unsigned char key, int x, int y) {
             if (strlen(input_nickname) > 0 && strlen(input_score) > 0) {
                 int score = atoi(input_score);
                 insertOnScoreList(&score_list, score, input_nickname);
+                salvarDados(&score_list); // Salva os dados após adicionar
             }
             adding_score = false;
             input_nickname[0] = '\0';
@@ -834,8 +846,8 @@ int main(int argc, char **argv) {
     
     glClearColor(0.75f, 0.75f, 0.75f, 1.0f);
     
-    struct DESCRITOR *score = &score_list;
-    carregarDados(score);
+    // Carrega os dados do arquivo ao iniciar
+    carregarDados(&score_list);
     
     printf("Lista original:\n");
     printScoreList(&score_list);
@@ -855,6 +867,7 @@ int main(int argc, char **argv) {
     
     glutMainLoop();
     
-    salvarDados(score);
+    // Salva os dados ao sair
+    salvarDados(&score_list);
     return 0;
 }
