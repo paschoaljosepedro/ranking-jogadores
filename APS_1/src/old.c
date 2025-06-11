@@ -352,7 +352,7 @@ void carregarDados(struct DESCRITOR *lista) {
     }
     
     char linha[100];
-    while (fgets(linha, sizeof(linha), arquivo) {
+    while (fgets(linha, sizeof(linha), arquivo)) {
         // Remove a quebra de linha
         linha[strcspn(linha, "\n")] = 0;
         
