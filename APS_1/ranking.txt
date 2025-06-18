@@ -1,3 +1,0 @@
-ana,9000
-jose,1
-pedro,100
