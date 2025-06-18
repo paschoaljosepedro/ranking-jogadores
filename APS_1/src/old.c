@@ -7,8 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/time.h>
 
-#define MENU_ITEMS 5
+#define MENU_ITEMS 6
 #define SUBMENU1_ITEMS 3
 #define SUBMENU2_ITEMS 3
 #define BAR_HEIGHT 50
@@ -16,6 +17,11 @@
 #define ITEM_PADDING 20
 
 /* Variáveis globais */
+int edit_field_active = 1; // 1 para nickname, 2 para score
+bool editing_score = false;
+int edit_position = -1;
+char edit_nickname[25] = "";
+char edit_score[10] = "";
 int current_menu = 0;
 int current_submenu = 0;
 bool adding_score = false;
@@ -25,10 +31,25 @@ char input_nickname[25] = "";
 char input_score[10] = "";
 char search_score[25] = "";
 char search_results[1024] = "";
+char time_results[1024] = "";
 int input_pos = 0;
 int window_width = 900;
 int window_height = 500;
-int selected_menu_item = 0;  // Moved to global variables section
+int selected_menu_item = 0;
+
+typedef struct {
+    long seconds;
+    long microseconds;
+    double elapsed;
+} TIMERETURN;
+
+TIMERETURN calcTimer(struct timeval start, struct timeval end) {
+    long seconds = end.tv_sec - start.tv_sec;
+    long microseconds = end.tv_usec - start.tv_usec;
+    double elapsed = seconds + microseconds * 1e-6;
+
+    return (TIMERETURN){seconds, microseconds, elapsed};
+}
 
 /* Estruturas de dados */
 struct RANKING {
@@ -75,255 +96,287 @@ void swapNodes(struct RANKING *a, struct RANKING *b) {
 
 /* Algoritmos de ordenação */
 void selection_sort(struct DESCRITOR *list) {
-  if (list->head == NULL || list->head->next == NULL)
-    return;
+    if (list->head == NULL || list->head->next == NULL)
+        return;
 
-  struct RANKING *current = list->head;
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
 
-  while (current != NULL) {
-    struct RANKING *max = current;
-    struct RANKING *r = current->next;
+    struct RANKING *current = list->head;
 
-    while (r != NULL) {
-      if (r->score > max->score) {
-        max = r;
-      }
-      r = r->next;
+    while (current != NULL) {
+        struct RANKING *max = current;
+        struct RANKING *r = current->next;
+
+        while (r != NULL) {
+            if (r->score > max->score) {
+                max = r;
+            }
+            r = r->next;
+        }
+
+        if (max != current) {
+            swapNodes(current, max);
+        }
+        current = current->next;
     }
 
-    if (max != current) {
-      swapNodes(current, max);
-    }
-    current = current->next;
-  }
+    gettimeofday(&end, NULL);
+    TIMERETURN timer = calcTimer(start, end);
+    sprintf(time_results, "Selection Sort concluído em %.6f segundos", timer.elapsed);
 }
 
 struct RANKING *merge_by_name(struct RANKING *first, struct RANKING *second) {
-  if (!first)
-    return second;
-  if (!second)
-    return first;
+    if (!first)
+        return second;
+    if (!second)
+        return first;
 
-  if (strcasecmp(first->nickname, second->nickname) <= 0) {
-    first->next = merge_by_name(first->next, second);
-    first->next->previous = first;
-    first->previous = NULL;
-    return first;
-  } else {
-    second->next = merge_by_name(first, second->next);
-    second->next->previous = second;
-    second->previous = NULL;
-    return second;
-  }
+    if (strcasecmp(first->nickname, second->nickname) <= 0) {
+        first->next = merge_by_name(first->next, second);
+        first->next->previous = first;
+        first->previous = NULL;
+        return first;
+    } else {
+        second->next = merge_by_name(first, second->next);
+        second->next->previous = second;
+        second->previous = NULL;
+        return second;
+    }
 }
 
 struct RANKING *merge_sort_by_name(struct RANKING *head) {
-  if (!head || !head->next)
-    return head;
+    if (!head || !head->next)
+        return head;
 
-  struct RANKING *slow = head;
-  struct RANKING *fast = head->next;
+    struct RANKING *slow = head;
+    struct RANKING *fast = head->next;
 
-  while (fast && fast->next) {
-    slow = slow->next;
-    fast = fast->next->next;
-  }
+    while (fast && fast->next) {
+        slow = slow->next;
+        fast = fast->next->next;
+    }
 
-  struct RANKING *mid = slow->next;
-  slow->next = NULL;
+    struct RANKING *mid = slow->next;
+    slow->next = NULL;
 
-  struct RANKING *left = merge_sort_by_name(head);
-  struct RANKING *right = merge_sort_by_name(mid);
+    struct RANKING *left = merge_sort_by_name(head);
+    struct RANKING *right = merge_sort_by_name(mid);
 
-  return merge_by_name(left, right);
+    return merge_by_name(left, right);
 }
 
 void merge_sort_wrapper(struct DESCRITOR *list) {
-  if (list->size < 2)
-    return;
+    if (list->size < 2)
+        return;
 
-  list->head = merge_sort_by_name(list->head);
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
 
-  struct RANKING *current = list->head;
-  struct RANKING *prev = NULL;
+    list->head = merge_sort_by_name(list->head);
 
-  while (current != NULL) {
-    current->previous = prev;
-    prev = current;
-    if (current->next == NULL) {
-      list->tail = current;
+    struct RANKING *current = list->head;
+    struct RANKING *prev = NULL;
+
+    while (current != NULL) {
+        current->previous = prev;
+        prev = current;
+        if (current->next == NULL) {
+            list->tail = current;
+        }
+        current = current->next;
     }
-    current = current->next;
-  }
+
+    gettimeofday(&end, NULL);
+    TIMERETURN timer = calcTimer(start, end);
+    sprintf(time_results, "Merge Sort concluído em %.6f segundos", timer.elapsed);
 }
 
 /* Funções de pesquisa */
 void binary_search(struct DESCRITOR *list, const char *nickname) {
-  search_results[0] = '\0';
-  if (list->head == NULL) {
-    strcat(search_results, "Lista vazia!\n");
-    return;
-  }
-
-  int left = 0, right = list->size - 1, found = 0;
-
-  while (left <= right) {
-    int mid = left + (right - left) / 2;
-    struct RANKING *mid_node = get_node_at_index(list, mid);
-
-    if (!mid_node)
-      break;
-
-    int cmp = strcasecmp(mid_node->nickname, nickname);
-    if (cmp == 0) {
-      char buffer[256];
-      sprintf(buffer, "Jogador '%s' encontrado na posicao %d: Pontuacao %d\n",
-              nickname, mid + 1, mid_node->score);
-      strcat(search_results, buffer);
-      found = 1;
-
-      int i = mid - 1;
-      struct RANKING *prev = get_node_at_index(list, i);
-      while (i >= 0 && prev && strcasecmp(prev->nickname, nickname) == 0) {
-        sprintf(buffer, "Jogador '%s' encontrado na posicao %d: Pontuacao %d\n",
-                nickname, i + 1, prev->score);
-        strcat(search_results, buffer);
-        i--;
-        prev = get_node_at_index(list, i);
-      }
-
-      i = mid + 1;
-      struct RANKING *next = get_node_at_index(list, i);
-      while (i < list->size && next &&
-             strcasecmp(next->nickname, nickname) == 0) {
-        sprintf(buffer, "Jogador '%s' encontrado na posicao %d: Pontuacao %d\n",
-                nickname, i + 1, next->score);
-        strcat(search_results, buffer);
-        i++;
-        next = get_node_at_index(list, i);
-      }
-      break;
+    search_results[0] = '\0';
+    if (list->head == NULL) {
+        strcat(search_results, "Lista vazia!\n");
+        return;
     }
 
-    if (cmp < 0)
-      left = mid + 1;
-    else
-      right = mid - 1;
-  }
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
 
-  if (!found) {
-    sprintf(search_results, "Jogador '%s' nao encontrado na lista.\n",
-            nickname);
-  }
+    int left = 0, right = list->size - 1, found = 0;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+        struct RANKING *mid_node = get_node_at_index(list, mid);
+
+        if (!mid_node)
+            break;
+
+        int cmp = strcasecmp(mid_node->nickname, nickname);
+        if (cmp == 0) {
+            char buffer[256];
+            sprintf(buffer, "Jogador '%s' encontrado na posicao %d: Pontuacao %d\n",
+                    nickname, mid + 1, mid_node->score);
+            strcat(search_results, buffer);
+            found = 1;
+
+            int i = mid - 1;
+            struct RANKING *prev = get_node_at_index(list, i);
+            while (i >= 0 && prev && strcasecmp(prev->nickname, nickname) == 0) {
+                sprintf(buffer, "Jogador '%s' encontrado na posicao %d: Pontuacao %d\n",
+                        nickname, i + 1, prev->score);
+                strcat(search_results, buffer);
+                i--;
+                prev = get_node_at_index(list, i);
+            }
+
+            i = mid + 1;
+            struct RANKING *next = get_node_at_index(list, i);
+            while (i < list->size && next &&
+                   strcasecmp(next->nickname, nickname) == 0) {
+                sprintf(buffer, "Jogador '%s' encontrado na posicao %d: Pontuacao %d\n",
+                        nickname, i + 1, next->score);
+                strcat(search_results, buffer);
+                i++;
+                next = get_node_at_index(list, i);
+            }
+            break;
+        }
+
+        if (cmp < 0)
+            left = mid + 1;
+        else
+            right = mid - 1;
+    }
+
+    if (!found) {
+        sprintf(search_results, "Jogador '%s' nao encontrado na lista.\n",
+                nickname);
+    }
+
+    gettimeofday(&end, NULL);
+    TIMERETURN timer = calcTimer(start, end);
+    char time_msg[256];
+    sprintf(time_msg, "\n\nTempo de busca binária: %.6f segundos", timer.elapsed);
+    strcat(search_results, time_msg);
 }
 
 void exponential_search(struct DESCRITOR *list, int score) {
-  search_results[0] = '\0';
-  if (list->head == NULL) {
-    strcat(search_results, "Lista vazia!\n");
-    return;
-  }
-
-  if (list->head->score == score) {
-    char buffer[256];
-    sprintf(buffer, "Pontuacao %d encontrada na posicao 1: %s\n", score,
-            list->head->nickname);
-    strcat(search_results, buffer);
-    return;
-  }
-
-  int i = 1;
-  while (i < list->size) {
-    struct RANKING *node = get_node_at_index(list, i);
-    if (!node)
-      break;
-
-    if (node->score <= score)
-      break;
-    i *= 2;
-  }
-
-  int left = i / 2, right = (i < list->size) ? i : list->size - 1, found = 0;
-
-  while (left <= right) {
-    int mid = left + (right - left) / 2;
-    struct RANKING *mid_node = get_node_at_index(list, mid);
-
-    if (!mid_node)
-      break;
-
-    if (mid_node->score == score) {
-      char buffer[256];
-      sprintf(buffer, "Pontuacao %d encontrada na posicao %d: %s\n", score,
-              mid + 1, mid_node->nickname);
-      strcat(search_results, buffer);
-      found = 1;
-
-      int i = mid - 1;
-      struct RANKING *prev = get_node_at_index(list, i);
-      while (i >= 0 && prev && prev->score == score) {
-        sprintf(buffer, "Pontuacao %d encontrada na posicao %d: %s\n", score,
-                i + 1, prev->nickname);
-        strcat(search_results, buffer);
-        i--;
-        prev = get_node_at_index(list, i);
-      }
-
-      i = mid + 1;
-      struct RANKING *next = get_node_at_index(list, i);
-      while (i < list->size && next && next->score == score) {
-        sprintf(buffer, "Pontuacao %d encontrada na posicao %d: %s\n", score,
-                i + 1, next->nickname);
-        strcat(search_results, buffer);
-        i++;
-        next = get_node_at_index(list, i);
-      }
-      break;
+    search_results[0] = '\0';
+    if (list->head == NULL) {
+        strcat(search_results, "Lista vazia!\n");
+        return;
     }
 
-    if (mid_node->score > score)
-      left = mid + 1;
-    else
-      right = mid - 1;
-  }
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
 
-  if (!found) {
-    sprintf(search_results, "Pontuacao %d nao encontrada na lista.\n", score);
-  }
+    if (list->head->score == score) {
+        char buffer[256];
+        sprintf(buffer, "Pontuacao %d encontrada na posicao 1: %s\n", score,
+                list->head->nickname);
+        strcat(search_results, buffer);
+        return;
+    }
+
+    int i = 1;
+    while (i < list->size) {
+        struct RANKING *node = get_node_at_index(list, i);
+        if (!node)
+            break;
+
+        if (node->score <= score)
+            break;
+        i *= 2;
+    }
+
+    int left = i / 2, right = (i < list->size) ? i : list->size - 1, found = 0;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+        struct RANKING *mid_node = get_node_at_index(list, mid);
+
+        if (!mid_node)
+            break;
+
+        if (mid_node->score == score) {
+            char buffer[256];
+            sprintf(buffer, "Pontuacao %d encontrada na posicao %d: %s\n", score,
+                    mid + 1, mid_node->nickname);
+            strcat(search_results, buffer);
+            found = 1;
+
+            int i = mid - 1;
+            struct RANKING *prev = get_node_at_index(list, i);
+            while (i >= 0 && prev && prev->score == score) {
+                sprintf(buffer, "Pontuacao %d encontrada na posicao %d: %s\n", score,
+                        i + 1, prev->nickname);
+                strcat(search_results, buffer);
+                i--;
+                prev = get_node_at_index(list, i);
+            }
+
+            i = mid + 1;
+            struct RANKING *next = get_node_at_index(list, i);
+            while (i < list->size && next && next->score == score) {
+                sprintf(buffer, "Pontuacao %d encontrada na posicao %d: %s\n", score,
+                        i + 1, next->nickname);
+                strcat(search_results, buffer);
+                i++;
+                next = get_node_at_index(list, i);
+            }
+            break;
+        }
+
+        if (mid_node->score > score)
+            left = mid + 1;
+        else
+            right = mid - 1;
+    }
+
+    if (!found) {
+        sprintf(search_results, "Pontuacao %d nao encontrada na lista.\n", score);
+    }
+
+    gettimeofday(&end, NULL);
+    TIMERETURN timer = calcTimer(start, end);
+    char time_msg[256];
+    sprintf(time_msg, "\n\nTempo de busca exponencial: %.6f segundos", timer.elapsed);
+    strcat(search_results, time_msg);
 }
 
 /* Funções de manipulação da lista */
 void printScoreList(struct DESCRITOR *list) {
-  printf("\n--- Ranking Atual ---\n");
-  struct RANKING *current = list->head;
-  int position = 1;
-  while (current != NULL) {
-    printf("%d. %s - %d pontos\n", position, current->nickname, current->score);
-    current = current->next;
-    position++;
-  }
-  printf("---------------------\n");
+    printf("\n--- Ranking Atual ---\n");
+    struct RANKING *current = list->head;
+    int position = 1;
+    while (current != NULL) {
+        printf("%d. %s - %d pontos\n", position, current->nickname, current->score);
+        current = current->next;
+        position++;
+    }
+    printf("---------------------\n");
 }
 
 void insertOnScoreList(struct DESCRITOR *list, int score,
                        const char *nickname) {
-  struct RANKING *new_node = (struct RANKING *)malloc(sizeof(struct RANKING));
-  new_node->score = score;
-  strncpy(new_node->nickname, nickname, 24);
-  new_node->nickname[24] = '\0';
-  new_node->next = NULL;
-  new_node->previous = NULL;
+    struct RANKING *new_node = (struct RANKING *)malloc(sizeof(struct RANKING));
+    new_node->score = score;
+    strncpy(new_node->nickname, nickname, 24);
+    new_node->nickname[24] = '\0';
+    new_node->next = NULL;
+    new_node->previous = NULL;
 
-  if (list->head == NULL) {
-    list->head = new_node;
-    list->tail = new_node;
-  } else {
-    new_node->previous = list->tail;
-    list->tail->next = new_node;
-    list->tail = new_node;
-  }
-  list->size++;
-  printScoreList(list);
+    if (list->head == NULL) {
+        list->head = new_node;
+        list->tail = new_node;
+    } else {
+        new_node->previous = list->tail;
+        list->tail->next = new_node;
+        list->tail = new_node;
+    }
+    list->size++;
+    printScoreList(list);
 }
 
 /* Funções de persistência de dados */
@@ -424,6 +477,12 @@ void drawSearchResults() {
         line = strtok(NULL, "\n");
     }
     
+    // Exibir tempo de busca
+    if (strstr(search_results, "Tempo de busca") != NULL) {
+        char *time_line = strstr(search_results, "Tempo de busca");
+        drawText(20, start_y, time_line);
+    }
+    
     drawText(window_width/4, BAR_HEIGHT + 30, "Pressione Esc para voltar");
     
     glutSwapBuffers();
@@ -511,6 +570,7 @@ void drawRankings() {
     start_y -= 20;
     
     // Itens
+    
     struct RANKING *current = score_list.head;
     int position = 1;
     
@@ -518,6 +578,20 @@ void drawRankings() {
         char pos_str[10], score_str[10];
         sprintf(pos_str, "%d", position);
         sprintf(score_str, "%d", current->score);
+        
+        // Destacar item selecionado
+        if (position-1 == selected_menu_item) {
+            glColor3f(0.4f, 0.4f, 0.4f);
+            glBegin(GL_QUADS);
+            glVertex2f(window_width/4 - 10, start_y + 10);
+            glVertex2f(window_width/4 + 400, start_y + 10);
+            glVertex2f(window_width/4 + 400, start_y - 10);
+            glVertex2f(window_width/4 - 10, start_y - 10);
+            glEnd();
+            glColor3f(1.0f, 1.0f, 1.0f);
+        } else {
+            glColor3f(0.0f, 0.0f, 0.0f);
+        }
         
         drawText(window_width/4, start_y, pos_str);
         drawText(window_width/4 + 100, start_y, current->nickname);
@@ -528,7 +602,8 @@ void drawRankings() {
         start_y -= 20;
     }
     
-    drawText(window_width/4, BAR_HEIGHT + 30, "Pressione Esc para voltar");
+    // Instruções
+    drawText(window_width/4, BAR_HEIGHT + 30, "Pressione Enter para editar, Esc para voltar");
     
     glutSwapBuffers();
 }
@@ -561,26 +636,34 @@ void drawAddScoreForm() {
     // Campos
     drawText(window_width/4, window_height/3, "Nickname:");
     
-    glColor3f(1.0f, 1.0f, 1.0f);
-    glBegin(GL_QUADS);
-    glVertex2f(window_width/4 + 100, window_height/3 - 15);
-    glVertex2f(window_width/4 + 300, window_height/3 - 15);
-    glVertex2f(window_width/4 + 300, window_height/3 + 15);
-    glVertex2f(window_width/4 + 100, window_height/3 + 15);
-    glEnd();
+    if (input_pos == 1) {
+    glColor3f(0.8f, 0.8f, 1.0f); // Azul claro para campo ativo
+} else {
+    glColor3f(1.0f, 1.0f, 1.0f); // Branco para campo inativo
+}
+glBegin(GL_QUADS);
+glVertex2f(window_width/4 + 100, window_height/3 - 15);
+glVertex2f(window_width/4 + 300, window_height/3 - 15);
+glVertex2f(window_width/4 + 300, window_height/3 + 15);
+glVertex2f(window_width/4 + 100, window_height/3 + 15);
+glEnd();
     
     glColor3f(0.0f, 0.0f, 0.0f);
     drawText(window_width/4 + 105, window_height/3 + 5, input_nickname);
     
     drawText(window_width/4, window_height/3 - 50, "Pontuacao:");
     
-    glColor3f(1.0f, 1.0f, 1.0f);
-    glBegin(GL_QUADS);
-    glVertex2f(window_width/4 + 100, window_height/3 - 65);
-    glVertex2f(window_width/4 + 300, window_height/3 - 65);
-    glVertex2f(window_width/4 + 300, window_height/3 - 35);
-    glVertex2f(window_width/4 + 100, window_height/3 - 35);
-    glEnd();
+if (input_pos == 2) {
+    glColor3f(0.8f, 0.8f, 1.0f); // Azul claro para campo ativo
+} else {
+    glColor3f(1.0f, 1.0f, 1.0f); // Branco para campo inativo
+}
+glBegin(GL_QUADS);
+glVertex2f(window_width/4 + 100, window_height/3 - 65);
+glVertex2f(window_width/4 + 300, window_height/3 - 65);
+glVertex2f(window_width/4 + 300, window_height/3 - 35);
+glVertex2f(window_width/4 + 100, window_height/3 - 35);
+glEnd();
     
     glColor3f(0.0f, 0.0f, 0.0f);
     drawText(window_width/4 + 105, window_height/3 - 45, input_score);
@@ -622,26 +705,56 @@ void drawMenu() {
     
     // Itens do menu
     int start_y = window_height - BAR_HEIGHT - 50;
-    const char *items[MENU_ITEMS] = {"Pesquisar", "Ordenar", "Adicionar", "Exibir Rankings", "Sair"};
     
-    for (int i = 0; i < MENU_ITEMS; i++) {
-        if (i == selected_menu_item) {
-            glColor3f(0.4f, 0.4f, 0.4f);
-            glBegin(GL_QUADS);
-            glVertex2f(window_width/4, start_y - i*ITEM_HEIGHT);
-            glVertex2f(3*window_width/4, start_y - i*ITEM_HEIGHT);
-            glVertex2f(3*window_width/4, start_y - i*ITEM_HEIGHT + ITEM_HEIGHT - ITEM_PADDING);
-            glVertex2f(window_width/4, start_y - i*ITEM_HEIGHT + ITEM_HEIGHT - ITEM_PADDING);
-            glEnd();
-            glColor3f(1.0f, 1.0f, 1.0f);
-        } else {
-            glColor3f(0.0f, 0.0f, 0.0f);
-        }
+    if (current_menu == 0) {
+        // Menu principal
+        const char *items[MENU_ITEMS] = {"Pesquisar", "Ordenar", "Adicionar", "Editar", "Exibir Rankings", "Sair"};
         
-        int text_width = glutBitmapLength(GLUT_BITMAP_HELVETICA_12, (const unsigned char*)items[i]);
-        drawText(window_width/2 - text_width/2, 
-                start_y - i*ITEM_HEIGHT + (ITEM_HEIGHT - ITEM_PADDING)/2 + 5, 
-                items[i]);
+        for (int i = 0; i < MENU_ITEMS; i++) {
+            if (i == selected_menu_item) {
+                glColor3f(0.4f, 0.4f, 0.4f);
+                glBegin(GL_QUADS);
+                glVertex2f(window_width/4, start_y - i*ITEM_HEIGHT);
+                glVertex2f(3*window_width/4, start_y - i*ITEM_HEIGHT);
+                glVertex2f(3*window_width/4, start_y - i*ITEM_HEIGHT + ITEM_HEIGHT - ITEM_PADDING);
+                glVertex2f(window_width/4, start_y - i*ITEM_HEIGHT + ITEM_HEIGHT - ITEM_PADDING);
+                glEnd();
+                glColor3f(1.0f, 1.0f, 1.0f);
+            } else {
+                glColor3f(0.0f, 0.0f, 0.0f);
+            }
+            
+            int text_width = glutBitmapLength(GLUT_BITMAP_HELVETICA_12, (const unsigned char*)items[i]);
+            drawText(window_width/2 - text_width/2, 
+                    start_y - i*ITEM_HEIGHT + (ITEM_HEIGHT - ITEM_PADDING)/2 + 5, 
+                    items[i]);
+        }
+    } else {
+        // Submenu
+        const char *submenu1_items[SUBMENU1_ITEMS] = {"Pesquisa Binaria (por nome)", "Pesquisa Exponencial (por pontuacao)", "Voltar"};
+        const char *submenu2_items[SUBMENU2_ITEMS] = {"Ordenar por pontuacao", "Ordenar por nome", "Voltar"};
+        const char **items = current_submenu == 1 ? submenu1_items : submenu2_items;
+        int item_count = current_submenu == 1 ? SUBMENU1_ITEMS : SUBMENU2_ITEMS;
+        
+        for (int i = 0; i < item_count; i++) {
+            if (i == selected_menu_item) {
+                glColor3f(0.4f, 0.4f, 0.4f);
+                glBegin(GL_QUADS);
+                glVertex2f(window_width/4, start_y - i*ITEM_HEIGHT);
+                glVertex2f(3*window_width/4, start_y - i*ITEM_HEIGHT);
+                glVertex2f(3*window_width/4, start_y - i*ITEM_HEIGHT + ITEM_HEIGHT - ITEM_PADDING);
+                glVertex2f(window_width/4, start_y - i*ITEM_HEIGHT + ITEM_HEIGHT - ITEM_PADDING);
+                glEnd();
+                glColor3f(1.0f, 1.0f, 1.0f);
+            } else {
+                glColor3f(0.0f, 0.0f, 0.0f);
+            }
+            
+            int text_width = glutBitmapLength(GLUT_BITMAP_HELVETICA_12, (const unsigned char*)items[i]);
+            drawText(window_width/2 - text_width/2, 
+                    start_y - i*ITEM_HEIGHT + (ITEM_HEIGHT - ITEM_PADDING)/2 + 5, 
+                    items[i]);
+        }
     }
     
     glutSwapBuffers();
@@ -649,6 +762,8 @@ void drawMenu() {
 
 /* Funções de manipulação de menu */
 void handleSubmenuSelection(int selected_index) {
+    time_results[0] = '\0'; // Limpa os resultados de tempo anteriores
+    
     if (selected_index == SUBMENU1_ITEMS - 1 ||
         selected_index == SUBMENU2_ITEMS - 1) {
         current_menu = 0;
@@ -674,9 +789,84 @@ void handleSubmenuSelection(int selected_index) {
     }
 }
 
+void drawEditScoreForm() {
+    glClearColor(0.75f, 0.75f, 0.75f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    
+    // Barra superior
+    glColor3f(0.5f, 0.5f, 0.5f);
+    glBegin(GL_QUADS);
+    glVertex2f(0, window_height);
+    glVertex2f(window_width, window_height);
+    glVertex2f(window_width, window_height - BAR_HEIGHT);
+    glVertex2f(0, window_height - BAR_HEIGHT);
+    glEnd();
+    
+    // Barra inferior
+    glBegin(GL_QUADS);
+    glVertex2f(0, 0);
+    glVertex2f(window_width, 0);
+    glVertex2f(window_width, BAR_HEIGHT);
+    glVertex2f(0, BAR_HEIGHT);
+    glEnd();
+    
+    // Título
+    glColor3f(0.0f, 0.0f, 0.0f);
+    drawText(20, window_height - BAR_HEIGHT/2 + 5, "Editar Pontuacao");
+    
+    // Campo Nickname
+    drawText(window_width/4, window_height/2 + 30, "Nickname:");
+    
+    // Caixa de texto do Nickname
+    if (edit_field_active == 1) {
+        glColor3f(0.8f, 0.8f, 1.0f); // Azul claro quando ativo
+    } else {
+        glColor3f(1.0f, 1.0f, 1.0f); // Branco quando inativo
+    }
+    glBegin(GL_QUADS);
+    glVertex2f(window_width/4 + 100, window_height/2 + 15);
+    glVertex2f(window_width/4 + 400, window_height/2 + 15);
+    glVertex2f(window_width/4 + 400, window_height/2 + 45);
+    glVertex2f(window_width/4 + 100, window_height/2 + 45);
+    glEnd();
+    
+    // Texto do Nickname
+    glColor3f(0.0f, 0.0f, 0.0f);
+    drawText(window_width/4 + 105, window_height/2 + 35, edit_nickname);
+    
+    // Campo Pontuação
+    drawText(window_width/4, window_height/2 - 20, "Pontuacao:");
+    
+    // Caixa de texto da Pontuação
+    if (edit_field_active == 2) {
+        glColor3f(0.8f, 0.8f, 1.0f); // Azul claro quando ativo
+    } else {
+        glColor3f(1.0f, 1.0f, 1.0f); // Branco quando inativo
+    }
+    glBegin(GL_QUADS);
+    glVertex2f(window_width/4 + 100, window_height/2 - 35);
+    glVertex2f(window_width/4 + 200, window_height/2 - 35);
+    glVertex2f(window_width/4 + 200, window_height/2 - 5);
+    glVertex2f(window_width/4 + 100, window_height/2 - 5);
+    glEnd();
+    
+    // Texto da Pontuação
+    glColor3f(0.0f, 0.0f, 0.0f);
+    drawText(window_width/4 + 105, window_height/2 - 15, edit_score);
+    
+    // Instruções
+    glColor3f(0.0f, 0.0f, 0.0f);
+    drawText(window_width/4, 60, "Pressione TAB para alternar entre campos");
+    drawText(window_width/4, 40, "ENTER para confirmar | ESC para cancelar");
+    
+    glutSwapBuffers();
+}
+
 /* Funções GLUT */
 void display() {
-    if (showing_rankings) {
+    if (editing_score) {
+        drawEditScoreForm();
+    } else if (showing_rankings) {
         drawRankings();
     } else if (adding_score) {
         drawAddScoreForm();
@@ -693,52 +883,110 @@ void display() {
     }
 }
 
+void prepareEdit(int position) {
+    struct RANKING *node = get_node_at_index(&score_list, position);
+    if (node) {
+        edit_position = position;
+        strncpy(edit_nickname, node->nickname, 24);
+        edit_nickname[24] = '\0';
+        sprintf(edit_score, "%d", node->score);
+        editing_score = true;
+        edit_field_active = 1; // Começa com o campo de nickname ativo
+    }
+}
+
 void keyboard(unsigned char key, int x, int y) {
     if (showing_rankings) {
         if (key == 27) { // ESC
             showing_rankings = false;
+        } else if (key == 13) { // Enter
+            prepareEdit(selected_menu_item);
         }
     } else if (adding_score) {
-        if (key == 13) { // Enter
-            if (strlen(input_nickname) > 0 && strlen(input_score) > 0) {
-                int score = atoi(input_score);
-                insertOnScoreList(&score_list, score, input_nickname);
-                salvarDados(&score_list); // Salva os dados após adicionar
+    if (key == 13) { // Enter
+        if (strlen(input_nickname) > 0 && strlen(input_score) > 0) {
+            int score = atoi(input_score);
+            insertOnScoreList(&score_list, score, input_nickname);
+            salvarDados(&score_list);
+        }
+        adding_score = false;
+        input_nickname[0] = '\0';
+        input_score[0] = '\0';
+        input_pos = 0;
+    } else if (key == 27) { // ESC
+        adding_score = false;
+        input_nickname[0] = '\0';
+        input_score[0] = '\0';
+        input_pos = 0;
+    } else if (key == 8) { // Backspace
+        if (input_pos == 1 && strlen(input_nickname) > 0) {
+            input_nickname[strlen(input_nickname)-1] = '\0';
+        } else if (input_pos == 2 && strlen(input_score) > 0) {
+            input_score[strlen(input_score)-1] = '\0';
+        }
+    } else if (key == 9) { // Tab
+        input_pos = (input_pos + 1) % 3;
+        if (input_pos == 0) input_pos = 1;
+    } else {
+        if (input_pos == 1 && strlen(input_nickname) < 24) {
+            if ((key >= 'a' && key <= 'z') || (key >= 'A' && key <= 'Z') || key == ' ') {
+                int len = strlen(input_nickname);
+                input_nickname[len] = key;
+                input_nickname[len+1] = '\0';
             }
-            adding_score = false;
-            input_nickname[0] = '\0';
-            input_score[0] = '\0';
-            input_pos = 0;
-        } else if (key == 27) { // ESC
-            adding_score = false;
-            input_nickname[0] = '\0';
-            input_score[0] = '\0';
-            input_pos = 0;
-        } else if (key == 8) { // Backspace
-            if (input_pos > 0) {
-                if (input_pos <= 25) {
-                    input_nickname[input_pos - 1] = '\0';
-                } else {
-                    input_score[input_pos - 26] = '\0';
-                }
-                input_pos--;
-            }
-        } else if (key == 9) { // Tab
-            input_pos = 26;
-        } else if (input_pos < 36) {
-            if ((key >= 'a' && key <= 'z') || (key >= 'A' && key <= 'Z') ||
-                (input_pos >= 26 && key >= '0' && key <= '9')) {
-                if (input_pos < 25) {
-                    input_nickname[input_pos] = key;
-                    input_nickname[input_pos + 1] = '\0';
-                } else if (input_pos >= 26 && input_pos < 36) {
-                    input_score[input_pos - 26] = key;
-                    input_score[input_pos - 25] = '\0';
-                }
-                input_pos++;
+        } else if (input_pos == 2 && strlen(input_score) < 9) {
+            if (key >= '0' && key <= '9') {
+                int len = strlen(input_score);
+                input_score[len] = key;
+                input_score[len+1] = '\0';
             }
         }
-    } else if (searching_score && strlen(search_results) > 0) {
+    }
+} else if (editing_score) {
+    if (key == 13) { // Enter - confirmar edição
+        if (strlen(edit_nickname) > 0 && strlen(edit_score) > 0 && edit_position != -1) {
+            struct RANKING *node = get_node_at_index(&score_list, edit_position);
+            if (node) {
+                node->score = atoi(edit_score);
+                strncpy(node->nickname, edit_nickname, 24);
+                node->nickname[24] = '\0';
+                salvarDados(&score_list);
+            }
+        }
+        editing_score = false;
+    } 
+    else if (key == 27) { // ESC - cancelar edição
+        editing_score = false;
+    } 
+    else if (key == 9) { // TAB - alternar entre campos
+        edit_field_active = (edit_field_active == 1) ? 2 : 1;
+    } 
+    else if (key == 8) { // Backspace - apagar caracter
+        if (edit_field_active == 1 && strlen(edit_nickname) > 0) {
+            edit_nickname[strlen(edit_nickname)-1] = '\0';
+        } 
+        else if (edit_field_active == 2 && strlen(edit_score) > 0) {
+            edit_score[strlen(edit_score)-1] = '\0';
+        }
+    } 
+    else {
+        if (edit_field_active == 1 && strlen(edit_nickname) < 24) {
+            if ((key >= 'a' && key <= 'z') || (key >= 'A' && key <= 'Z') || key == ' ' || (key >= '0' && key <= '9')) {
+                int len = strlen(edit_nickname);
+                edit_nickname[len] = key;
+                edit_nickname[len+1] = '\0';
+            }
+        } 
+        else if (edit_field_active == 2 && strlen(edit_score) < 9) {
+            if (key >= '0' && key <= '9') {
+                int len = strlen(edit_score);
+                edit_score[len] = key;
+                edit_score[len+1] = '\0';
+            }
+        }
+    }
+    glutPostRedisplay();
+} else if (searching_score && strlen(search_results) > 0) {
         if (key == 27) { // ESC
             search_results[0] = '\0';
             searching_score = false;
@@ -783,6 +1031,9 @@ void keyboard(unsigned char key, int x, int y) {
                 adding_score = true;
                 input_pos = 0;
             } else if (selected_menu_item == 3) {
+                showing_rankings = true;
+                selected_menu_item = 0;
+            } else if (selected_menu_item == 4) {
                 showing_rankings = true;
             }
         } else if (key == 'w' || key == 'W') {
